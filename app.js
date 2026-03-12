@@ -1,5 +1,60 @@
 'use strict';
 
+// ── SPLASH ANIMATION ───────────────────────────────────────
+(function runSplash() {
+  const splash = document.getElementById('splash');
+  const text   = document.getElementById('splash-text');
+  if (!splash || !text) return;
+
+  // Stagger letter entrance
+  const letters = text.querySelectorAll('span:not(.splash-space)');
+  letters.forEach((el, i) => {
+    el.style.animationDelay = `${0.25 + i * 0.06}s`;
+  });
+
+  // After letters appear, shake then crumble
+  setTimeout(() => {
+    splash.classList.add('shaking');
+
+    setTimeout(() => {
+      // Spawn dust particles
+      for (let p = 0; p < 22; p++) {
+        const d = document.createElement('div');
+        d.className = 'splash-dust';
+        const angle = Math.random() * Math.PI * 2;
+        const dist  = 60 + Math.random() * 140;
+        d.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+        d.style.setProperty('--dy', `${Math.sin(angle) * dist + 30}px`);
+        d.style.setProperty('--dd', `${Math.random() * 0.25}s`);
+        d.style.left = `${40 + Math.random() * 20}%`;
+        d.style.top  = '50%';
+        splash.appendChild(d);
+      }
+
+      // Crumble each letter
+      letters.forEach((el, i) => {
+        const cx = (Math.random() - 0.5) * 260;
+        const cy = 60 + Math.random() * 180;
+        const cr = (Math.random() - 0.5) * 220;
+        el.style.setProperty('--cx', `${cx}px`);
+        el.style.setProperty('--cy', `${cy}px`);
+        el.style.setProperty('--cr', `${cr}deg`);
+        el.style.setProperty('--cd', `${i * 0.045}s`);
+        // force reflow so class change triggers animation
+        void el.offsetWidth;
+        el.classList.add('crumble');
+      });
+
+      // Fade out and remove splash
+      setTimeout(() => {
+        splash.classList.add('fading');
+        setTimeout(() => splash.remove(), 420);
+      }, 750);
+
+    }, 320); // after shake
+  }, 1600);  // hold time before crumble
+})();
+
 // ── CONSTANTS ──────────────────────────────────────────────
 const GRADES = ['VB','V0','V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V13','V14','V15','V16','V17'];
 const GRADE_COLORS = {
