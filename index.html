@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#121212">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BoulderLog">
+  <link rel="manifest" href="manifest.json">
+  <title>BoulderLog</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="screen">
+  <div class="login-container">
+    <div class="app-logo">🧗</div>
+    <h1>BoulderLog</h1>
+    <p>Track your bouldering progress</p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-signin">Sign In</button>
+      <button class="auth-tab" id="tab-signup">Sign Up</button>
+    </div>
+
+    <div class="auth-form">
+      <input type="email" id="auth-email" class="auth-input" placeholder="Email" autocomplete="email">
+      <input type="password" id="auth-password" class="auth-input" placeholder="Password" autocomplete="current-password">
+      <input type="password" id="auth-confirm" class="auth-input hidden" placeholder="Confirm Password">
+      <div id="auth-error" class="auth-error hidden"></div>
+      <button id="auth-submit-btn" class="btn btn-primary auth-submit">Sign In</button>
+    </div>
+
+    <p class="auth-note" id="auth-note"></p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-screen" class="screen hidden">
+
+  <!-- LIST VIEW -->
+  <div id="list-view" class="view">
+    <header class="app-header">
+      <h1>BoulderLog</h1>
+      <div class="header-actions">
+        <button id="signout-btn" class="icon-btn" title="Sign out">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+          </svg>
+        </button>
+        <button id="add-climb-btn" class="btn btn-primary">+ Add Climb</button>
+      </div>
+    </header>
+    <div class="search-filter-bar">
+      <input type="text" id="search-input" placeholder="Search climbs..." class="search-input">
+      <div class="filter-chips">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="project">🎯 Project</button>
+        <button class="chip" data-filter="attempted">💪 Attempted</button>
+        <button class="chip" data-filter="sent">✅ Sent</button>
+      </div>
+    </div>
+    <div id="climbs-grid" class="climbs-grid"></div>
+  </div>
+
+  <!-- ADD / EDIT VIEW -->
+  <div id="edit-view" class="view hidden">
+    <header class="app-header">
+      <button class="back-btn" id="edit-back-btn">← Back</button>
+      <h1 id="edit-title">Add Climb</h1>
+      <button class="btn btn-primary" id="save-climb-btn">Save</button>
+    </header>
+    <div class="edit-form">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="climb-name-input" placeholder="e.g. The Crimson Corner" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>Photo</label>
+        <div class="photo-upload-area" id="photo-upload-area">
+          <img id="edit-photo-preview" class="photo-preview hidden" alt="Climb photo">
+          <div id="photo-placeholder" class="photo-placeholder">
+            <span>📷</span>
+            <span>Tap to add photo</span>
+          </div>
+          <input type="file" id="photo-input" accept="image/*" class="hidden">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Grade</label>
+        <div class="grade-grid" id="grade-picker"></div>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <div class="status-picker" id="status-picker">
+          <button class="status-btn active" data-status="project">🎯 Project</button>
+          <button class="status-btn" data-status="attempted">💪 Attempted</button>
+          <button class="status-btn" data-status="sent">✅ Sent!</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="climb-notes-input" placeholder="Beta notes, moves, tips..." class="form-textarea" rows="4"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL VIEW -->
+  <div id="detail-view" class="view hidden">
+    <header class="app-header">
+      <button class="back-btn" id="detail-back-btn">← Back</button>
+      <h1 id="detail-title">Climb</h1>
+      <div class="header-actions">
+        <button class="icon-btn" id="edit-climb-btn" title="Edit">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+        </button>
+        <button class="icon-btn danger" id="delete-climb-btn" title="Delete">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+    <div class="detail-content">
+      <div class="photo-canvas-container" id="photo-canvas-container">
+        <img id="detail-photo" class="detail-photo" alt="Climb photo" crossorigin="anonymous">
+        <canvas id="drawing-canvas"></canvas>
+        <div class="drawing-toolbar">
+          <button class="tool-btn active" data-tool="pen" title="Pen">✏️</button>
+          <button class="tool-btn" data-tool="arrow" title="Arrow">➡️</button>
+          <button class="tool-btn" data-tool="eraser" title="Eraser">🧹</button>
+          <div class="color-swatches">
+            <button class="color-swatch active" data-color="#FF6B35" style="background:#FF6B35" title="Orange"></button>
+            <button class="color-swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></button>
+            <button class="color-swatch" data-color="#FFD700" style="background:#FFD700" title="Yellow"></button>
+            <button class="color-swatch" data-color="#00E676" style="background:#00E676" title="Green"></button>
+            <button class="color-swatch" data-color="#FF1744" style="background:#FF1744" title="Red"></button>
+          </div>
+          <button class="tool-btn" id="undo-btn" title="Undo">↩️</button>
+          <button class="tool-btn" id="clear-drawing-btn" title="Clear drawing">🗑️</button>
+          <button class="tool-btn" id="save-drawing-btn" title="Save drawing">💾</button>
+        </div>
+      </div>
+      <div class="detail-info">
+        <div class="detail-grade-status">
+          <span class="grade-badge large" id="detail-grade"></span>
+          <span class="status-badge" id="detail-status"></span>
+        </div>
+        <div class="detail-notes" id="detail-notes"></div>
+        <div class="detail-date" id="detail-date"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
