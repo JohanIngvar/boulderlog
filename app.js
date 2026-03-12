@@ -270,14 +270,9 @@ async function quickSetStatus(climbId, newStatus) {
     if (error) throw error;
     const idx = climbs.findIndex(c => c.id === climbId);
     if (idx !== -1) climbs[idx].status = newStatus;
-    // Update just the status row on that card without full re-render
-    const card = document.querySelector(`.climb-card[data-id="${climbId}"]`);
-    if (card) {
-      card.querySelectorAll('.quick-status-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.status === newStatus);
-      });
-    }
-    // If detail view is open for this climb, update badge too
+    // Re-render kanban so card moves to new column
+    renderClimbsList();
+    // Update detail view badge if open
     if (currentClimb && currentClimb.id === climbId) {
       currentClimb.status = newStatus;
       const sc = { project: '🎯 Project', attempted: '💪 Attempted', sent: '✅ Sent!' };
@@ -330,55 +325,145 @@ function showView(id) {
   if (id === 'detail-view') setTimeout(initCanvas, 50);
 }
 
-// ── LIST VIEW ──────────────────────────────────────────────
+// ── DRAG STATE ─────────────────────────────────────────────
+let draggedId = null;
+
+// ── LIST / KANBAN VIEW ─────────────────────────────────────
 function renderClimbsList() {
-  const grid = document.getElementById('climbs-grid');
-  const filtered = climbs.filter(c => {
-    const matchFilter = activeFilter === 'all' || c.status === activeFilter;
-    const q = searchQuery.toLowerCase();
-    const matchSearch = !q || (c.name || '').toLowerCase().includes(q) || (c.grade || '').toLowerCase().includes(q);
-    return matchFilter && matchSearch;
+  const cols = {
+    project:  document.getElementById('col-project'),
+    attempted: document.getElementById('col-attempted'),
+    sent:     document.getElementById('col-sent'),
+  };
+  if (!cols.project) return;
+
+  const q = searchQuery.toLowerCase();
+  const filtered = climbs.filter(c =>
+    !q || (c.name || '').toLowerCase().includes(q) || (c.grade || '').toLowerCase().includes(q)
+  );
+
+  // Clear & update counts
+  ['project','attempted','sent'].forEach(s => {
+    cols[s].innerHTML = '';
+    const cnt = document.getElementById(`count-${s}`);
+    if (cnt) cnt.textContent = filtered.filter(c => c.status === s).length;
   });
 
   if (filtered.length === 0) {
-    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">🧗</div><p>${climbs.length === 0 ? 'No climbs yet. Add your first one!' : 'No climbs match your filter.'}</p></div>`;
+    cols.project.innerHTML = `<div class="kanban-empty">${climbs.length === 0 ? 'No climbs yet' : 'No results'}</div>`;
     return;
   }
 
-  grid.innerHTML = filtered.map(c => {
+  filtered.forEach(c => {
+    const col = cols[c.status] || cols.project;
     const color = GRADE_COLORS[c.grade] || '#9E9E9E';
-    const statusEmoji = { project: '🎯', attempted: '💪', sent: '✅' }[c.status] || '🎯';
     const textColor = isLight(color) ? '#000' : '#fff';
-    return `
-      <div class="climb-card" data-id="${c.id}">
-        ${c.photo_url
-          ? `<div class="card-photo-wrapper">
-               <img class="card-photo" src="${c.photo_url}" alt="${esc(c.name)}" loading="lazy">
-               ${c.drawing_url ? `<img class="card-drawing-overlay" src="${c.drawing_url}" alt="">` : ''}
-             </div>`
-          : `<div class="card-photo-placeholder" style="background:${color}20"><span style="font-size:2.5rem">🧗</span></div>`}
-        <div class="card-info">
-          <div class="card-header">
-            <span class="grade-badge" style="background:${color};color:${textColor}">${esc(c.grade || '?')}</span>
-            <div class="card-name">${esc(c.name || 'Unnamed')}</div>
-          </div>
-          <div class="card-status-row">
-            <button class="quick-status-btn ${c.status === 'project'  ? 'active' : ''}" data-status="project"  title="Project">🎯</button>
-            <button class="quick-status-btn ${c.status === 'attempted' ? 'active' : ''}" data-status="attempted" title="Attempted">💪</button>
-            <button class="quick-status-btn ${c.status === 'sent'     ? 'active' : ''}" data-status="sent"     title="Sent">✅</button>
-          </div>
+
+    const card = document.createElement('div');
+    card.className = 'climb-card';
+    card.dataset.id = c.id;
+    card.innerHTML = `
+      ${c.photo_url
+        ? `<div class="card-photo-wrapper">
+             <img class="card-photo" src="${c.photo_url}" alt="${esc(c.name)}" loading="lazy">
+             ${c.drawing_url ? `<img class="card-drawing-overlay" src="${c.drawing_url}" alt="">` : ''}
+           </div>`
+        : `<div class="card-photo-placeholder" style="background:${color}20"><span style="font-size:2rem">🧗</span></div>`}
+      <div class="card-info">
+        <div class="card-header">
+          <span class="grade-badge" style="background:${color};color:${textColor}">${esc(c.grade || '?')}</span>
+          <div class="card-name">${esc(c.name || 'Unnamed')}</div>
         </div>
       </div>`;
-  }).join('');
 
-  grid.querySelectorAll('.climb-card').forEach(card => {
-    card.addEventListener('click', () => openClimbDetail(card.dataset.id));
-    card.querySelectorAll('.quick-status-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation(); // don't open detail view
-        quickSetStatus(card.dataset.id, btn.dataset.status);
-      });
+    card.addEventListener('click', () => openClimbDetail(c.id));
+    setupCardDrag(card, c.id);
+    col.appendChild(card);
+  });
+
+  // Desktop drop zones
+  Object.values(cols).forEach(setupDropZone);
+}
+
+function setupCardDrag(card, climbId) {
+  // ── Desktop (HTML5 drag) ──
+  card.setAttribute('draggable', 'true');
+  card.addEventListener('dragstart', e => {
+    draggedId = climbId;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => card.classList.add('dragging'), 0);
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    document.querySelectorAll('.kanban-body').forEach(b => b.classList.remove('drag-over'));
+    draggedId = null;
+  });
+
+  // ── Mobile (touch drag) ──
+  let clone = null;
+  card.addEventListener('touchstart', e => {
+    draggedId = climbId;
+    const rect = card.getBoundingClientRect();
+    clone = card.cloneNode(true);
+    Object.assign(clone.style, {
+      position: 'fixed', pointerEvents: 'none', zIndex: '9998',
+      width: rect.width + 'px', left: rect.left + 'px', top: rect.top + 'px',
+      opacity: '0.85', transform: 'scale(1.04) rotate(1.5deg)',
+      boxShadow: '0 10px 30px rgba(0,0,0,0.5)', borderRadius: '12px',
+      transition: 'transform 0.1s',
     });
+    document.body.appendChild(clone);
+    card.style.opacity = '0.25';
+  }, { passive: true });
+
+  card.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    if (clone) {
+      clone.style.left = t.clientX - clone.offsetWidth / 2 + 'px';
+      clone.style.top  = t.clientY - 70 + 'px';
+    }
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const over = el?.closest('.kanban-body');
+    document.querySelectorAll('.kanban-body').forEach(b => b.classList.toggle('drag-over', b === over));
+  }, { passive: false });
+
+  card.addEventListener('touchend', e => {
+    const t = e.changedTouches[0];
+    if (clone) { clone.remove(); clone = null; }
+    card.style.opacity = '';
+    document.querySelectorAll('.kanban-body').forEach(b => b.classList.remove('drag-over'));
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const col = el?.closest('.kanban-body');
+    if (col && draggedId) {
+      const newStatus = col.dataset.status;
+      const climb = climbs.find(c => c.id === draggedId);
+      if (climb && climb.status !== newStatus) {
+        quickSetStatus(draggedId, newStatus);
+      }
+    }
+    draggedId = null;
+  });
+}
+
+function setupDropZone(body) {
+  body.addEventListener('dragover', e => {
+    e.preventDefault();
+    body.classList.add('drag-over');
+  });
+  body.addEventListener('dragleave', e => {
+    if (!body.contains(e.relatedTarget)) body.classList.remove('drag-over');
+  });
+  body.addEventListener('drop', e => {
+    e.preventDefault();
+    body.classList.remove('drag-over');
+    if (draggedId) {
+      const newStatus = body.dataset.status;
+      const climb = climbs.find(c => c.id === draggedId);
+      if (climb && climb.status !== newStatus) {
+        quickSetStatus(draggedId, newStatus);
+      }
+    }
   });
 }
 
@@ -793,18 +878,10 @@ function setupEventListeners() {
   document.getElementById('clear-drawing-btn').addEventListener('click', clearDrawing);
   document.getElementById('save-drawing-btn').addEventListener('click', saveDrawing);
 
-  // Search & filter
+  // Search
   document.getElementById('search-input').addEventListener('input', e => {
     searchQuery = e.target.value;
     renderClimbsList();
-  });
-  document.querySelectorAll('.chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      activeFilter = chip.dataset.filter;
-      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      renderClimbsList();
-    });
   });
 }
 

@@ -59,19 +59,26 @@
             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
           </svg>
         </button>
-        <button id="add-climb-btn" class="btn btn-primary">+ Add Climb</button>
+        <button id="add-climb-btn" class="btn btn-primary">+ Add</button>
       </div>
     </header>
-    <div class="search-filter-bar">
-      <input type="text" id="search-input" placeholder="Search climbs..." class="search-input">
-      <div class="filter-chips">
-        <button class="chip active" data-filter="all">All</button>
-        <button class="chip" data-filter="project">🎯 Project</button>
-        <button class="chip" data-filter="attempted">💪 Attempted</button>
-        <button class="chip" data-filter="sent">✅ Sent</button>
+    <div class="kanban-search-bar">
+      <input type="text" id="search-input" placeholder="🔍  Search climbs..." class="search-input">
+    </div>
+    <div id="kanban-board" class="kanban-board">
+      <div class="kanban-col">
+        <div class="kanban-header"><span>🎯 Project</span><span class="kanban-count" id="count-project">0</span></div>
+        <div class="kanban-body" id="col-project" data-status="project"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-header"><span>💪 Attempted</span><span class="kanban-count" id="count-attempted">0</span></div>
+        <div class="kanban-body" id="col-attempted" data-status="attempted"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="kanban-header"><span>✅ Sent</span><span class="kanban-count" id="count-sent">0</span></div>
+        <div class="kanban-body" id="col-sent" data-status="sent"></div>
       </div>
     </div>
-    <div id="climbs-grid" class="climbs-grid"></div>
   </div>
 
   <!-- ADD / EDIT VIEW -->
