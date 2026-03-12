@@ -243,16 +243,39 @@ html, body {
   justify-content: center;
 }
 .card-info { padding: 8px 10px 10px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; }
 .grade-badge {
   padding: 2px 8px;
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 700;
+  flex-shrink: 0;
 }
 .grade-badge.large { padding: 6px 14px; font-size: 1.1rem; }
-.status-emoji { font-size: 1rem; }
-.card-name { font-size: 0.9rem; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-name { font-size: 0.9rem; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+.card-status-row {
+  display: flex;
+  gap: 4px;
+}
+.quick-status-btn {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 2px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+  text-align: center;
+}
+.quick-status-btn:hover { opacity: 0.75; }
+.quick-status-btn.active {
+  opacity: 1;
+  background: rgba(255,107,53,0.15);
+  border-color: var(--accent);
+}
 
 .empty-state {
   grid-column: 1/-1;

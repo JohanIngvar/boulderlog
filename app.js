@@ -206,6 +206,35 @@ async function saveClimbData(data) {
   }
 }
 
+async function quickSetStatus(climbId, newStatus) {
+  try {
+    const { error } = await sb
+      .from('climbs')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', climbId);
+    if (error) throw error;
+    const idx = climbs.findIndex(c => c.id === climbId);
+    if (idx !== -1) climbs[idx].status = newStatus;
+    // Update just the status row on that card without full re-render
+    const card = document.querySelector(`.climb-card[data-id="${climbId}"]`);
+    if (card) {
+      card.querySelectorAll('.quick-status-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.status === newStatus);
+      });
+    }
+    // If detail view is open for this climb, update badge too
+    if (currentClimb && currentClimb.id === climbId) {
+      currentClimb.status = newStatus;
+      const sc = { project: '🎯 Project', attempted: '💪 Attempted', sent: '✅ Sent!' };
+      const el = document.getElementById('detail-status');
+      if (el) el.textContent = sc[newStatus];
+    }
+  } catch (err) {
+    showToast('Error updating status', 'error');
+    console.error(err);
+  }
+}
+
 async function deleteClimbById(climbId) {
   try {
     const { error } = await sb.from('climbs').delete().eq('id', climbId);
@@ -276,15 +305,25 @@ function renderClimbsList() {
         <div class="card-info">
           <div class="card-header">
             <span class="grade-badge" style="background:${color};color:${textColor}">${esc(c.grade || '?')}</span>
-            <span class="status-emoji">${statusEmoji}</span>
+            <div class="card-name">${esc(c.name || 'Unnamed')}</div>
           </div>
-          <div class="card-name">${esc(c.name || 'Unnamed')}</div>
+          <div class="card-status-row">
+            <button class="quick-status-btn ${c.status === 'project'  ? 'active' : ''}" data-status="project"  title="Project">🎯</button>
+            <button class="quick-status-btn ${c.status === 'attempted' ? 'active' : ''}" data-status="attempted" title="Attempted">💪</button>
+            <button class="quick-status-btn ${c.status === 'sent'     ? 'active' : ''}" data-status="sent"     title="Sent">✅</button>
+          </div>
         </div>
       </div>`;
   }).join('');
 
   grid.querySelectorAll('.climb-card').forEach(card => {
     card.addEventListener('click', () => openClimbDetail(card.dataset.id));
+    card.querySelectorAll('.quick-status-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation(); // don't open detail view
+        quickSetStatus(card.dataset.id, btn.dataset.status);
+      });
+    });
   });
 }
 
