@@ -1,4 +1,4 @@
-const CACHE = 'boulderlog-v1';
+const CACHE = 'boulderlog-v2';
 const ASSETS = ['.', 'index.html', 'styles.css', 'app.js', 'manifest.json'];
 
 self.addEventListener('install', e => {
