@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#121212">
+  <meta name="theme-color" content="#000000" id="theme-meta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BoulderLog">
@@ -13,171 +13,213 @@
 </head>
 <body>
 
-<!-- SPLASH SCREEN -->
+<!-- ══ SPLASH ══ -->
 <div id="splash">
-  <div id="splash-icon">🪨</div>
-  <div id="splash-text">
-    <span>B</span><span>o</span><span>u</span><span>l</span><span>d</span><span>e</span><span>r</span><span class="splash-space"> </span><span>L</span><span>o</span><span>g</span>
+  <div class="splash-content">
+    <div id="splash-icon">🪨</div>
+    <div id="splash-text">
+      <span>B</span><span>o</span><span>u</span><span>l</span><span>d</span><span>e</span><span>r</span><span class="splash-space"> </span><span>L</span><span>o</span><span>g</span>
+    </div>
+    <div id="splash-rule"></div>
+    <div id="splash-tagline">track your sends</div>
   </div>
-  <div id="splash-tagline">track your sends</div>
 </div>
 
-<!-- LOGIN SCREEN -->
+<!-- ══ LOGIN ══ -->
 <div id="login-screen" class="screen">
-  <div class="login-container">
-    <div class="app-logo">🧗</div>
-    <h1>BoulderLog</h1>
-    <p>Track your bouldering progress</p>
+  <div class="login-wrap">
+    <div class="login-logo">🪨</div>
+    <h1 class="login-title">BoulderLog</h1>
+    <p class="login-sub">Track every send.</p>
 
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="tab-signin">Sign In</button>
-      <button class="auth-tab" id="tab-signup">Sign Up</button>
+    <div class="login-card">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signin">Sign In</button>
+        <button class="auth-tab" id="tab-signup">Sign Up</button>
+      </div>
+      <input type="email"    id="auth-email"    class="auth-input" placeholder="Email"            autocomplete="email">
+      <input type="password" id="auth-password" class="auth-input" placeholder="Password"         autocomplete="current-password">
+      <input type="password" id="auth-confirm"  class="auth-input hidden" placeholder="Confirm Password">
+      <div id="auth-error" class="auth-msg auth-error hidden"></div>
+      <div id="auth-note"  class="auth-msg auth-note  hidden"></div>
+      <button id="auth-submit-btn" class="btn btn-primary">Sign In</button>
     </div>
-
-    <div class="auth-form">
-      <input type="email" id="auth-email" class="auth-input" placeholder="Email" autocomplete="email">
-      <input type="password" id="auth-password" class="auth-input" placeholder="Password" autocomplete="current-password">
-      <input type="password" id="auth-confirm" class="auth-input hidden" placeholder="Confirm Password">
-      <div id="auth-error" class="auth-error hidden"></div>
-      <button id="auth-submit-btn" class="btn btn-primary auth-submit">Sign In</button>
-    </div>
-
-    <p class="auth-note" id="auth-note"></p>
   </div>
 </div>
 
-<!-- MAIN APP -->
+<!-- ══ APP ══ -->
 <div id="app-screen" class="screen hidden">
 
-  <!-- LIST VIEW -->
-  <div id="list-view" class="view">
-    <header class="app-header">
-      <h1>BoulderLog</h1>
-      <div class="header-actions">
-        <button id="signout-btn" class="icon-btn" title="Sign out">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-          </svg>
-        </button>
-        <button id="add-climb-btn" class="btn btn-primary">+ Add</button>
-      </div>
-    </header>
-    <div class="kanban-search-bar">
-      <input type="text" id="search-input" placeholder="🔍  Search climbs..." class="search-input">
+  <!-- Sidebar (desktop) -->
+  <aside id="sidebar">
+    <div class="sb-header">
+      <span class="sb-logo-icon">🪨</span>
+      <span class="sb-logo-text">BoulderLog</span>
     </div>
-    <div id="kanban-board" class="kanban-board">
-      <div class="kanban-col">
-        <div class="kanban-header"><span>🎯 Project</span><span class="kanban-count" id="count-project">0</span></div>
-        <div class="kanban-body" id="col-project" data-status="project"></div>
-      </div>
-      <div class="kanban-col">
-        <div class="kanban-header"><span>💪 Attempted</span><span class="kanban-count" id="count-attempted">0</span></div>
-        <div class="kanban-body" id="col-attempted" data-status="attempted"></div>
-      </div>
-      <div class="kanban-col">
-        <div class="kanban-header"><span>✅ Sent</span><span class="kanban-count" id="count-sent">0</span></div>
-        <div class="kanban-body" id="col-sent" data-status="sent"></div>
-      </div>
-    </div>
-  </div>
 
-  <!-- ADD / EDIT VIEW -->
-  <div id="edit-view" class="view hidden">
-    <header class="app-header">
-      <button class="back-btn" id="edit-back-btn">← Back</button>
-      <h1 id="edit-title">Add Climb</h1>
-      <button class="btn btn-primary" id="save-climb-btn">Save</button>
-    </header>
-    <div class="edit-form">
-      <div class="form-group">
-        <label>Name</label>
-        <input type="text" id="climb-name-input" placeholder="e.g. The Crimson Corner" class="form-input">
+    <nav class="sb-nav">
+      <p class="sb-nav-label">Climbs</p>
+      <button class="nav-item active" data-section="all">
+        <span class="nav-icon">🧗</span><span class="nav-label">All Climbs</span>
+        <span class="nav-badge" id="nav-count-all">0</span>
+      </button>
+      <button class="nav-item" data-section="project">
+        <span class="nav-icon">🎯</span><span class="nav-label">Project</span>
+        <span class="nav-badge" id="nav-count-project">0</span>
+      </button>
+      <button class="nav-item" data-section="attempted">
+        <span class="nav-icon">💪</span><span class="nav-label">Attempted</span>
+        <span class="nav-badge" id="nav-count-attempted">0</span>
+      </button>
+      <button class="nav-item" data-section="sent">
+        <span class="nav-icon">✅</span><span class="nav-label">Sent</span>
+        <span class="nav-badge" id="nav-count-sent">0</span>
+      </button>
+    </nav>
+
+    <div class="sb-add">
+      <button class="btn btn-primary sb-add-btn" id="add-climb-sidebar-btn">+ New Climb</button>
+    </div>
+
+    <div class="sb-bottom">
+      <div class="sb-email" id="sidebar-user-email"></div>
+      <button class="nav-item" id="theme-toggle-sidebar">
+        <span class="nav-icon" id="theme-icon-sidebar">🌙</span>
+        <span class="nav-label" id="theme-label-sidebar">Dark Mode</span>
+      </button>
+      <button class="nav-item nav-danger" id="signout-btn">
+        <span class="nav-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        </span>
+        <span class="nav-label">Sign Out</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div id="main-content">
+
+    <!-- ── LIST VIEW ── -->
+    <div id="list-view" class="view">
+      <header class="top-bar">
+        <h1 class="top-bar-title">BoulderLog</h1>
+        <div class="top-bar-actions">
+          <button id="theme-toggle-mobile" class="icon-btn" title="Toggle theme">🌙</button>
+          <button id="signout-mobile-btn" class="icon-btn" title="Sign out">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+          </button>
+          <button id="add-climb-btn" class="btn btn-primary">+ Add</button>
+        </div>
+      </header>
+
+      <!-- Segment tabs (mobile only) -->
+      <div class="seg-bar">
+        <button class="seg-tab active" data-section="all">All <span class="seg-n" id="seg-count-all">0</span></button>
+        <button class="seg-tab" data-section="project">🎯 Project <span class="seg-n" id="seg-count-project">0</span></button>
+        <button class="seg-tab" data-section="attempted">💪 Attempted <span class="seg-n" id="seg-count-attempted">0</span></button>
+        <button class="seg-tab" data-section="sent">✅ Sent <span class="seg-n" id="seg-count-sent">0</span></button>
       </div>
-      <div class="form-group">
-        <label>Photo</label>
-        <div class="photo-upload-area" id="photo-upload-area">
-          <img id="edit-photo-preview" class="photo-preview hidden" alt="Climb photo">
-          <div id="photo-placeholder" class="photo-placeholder">
-            <span>📷</span>
-            <span>Tap to add photo</span>
+
+      <!-- Search -->
+      <div class="list-search-wrap">
+        <input type="text" id="search-input" placeholder="Search climbs…" class="search-input">
+      </div>
+
+      <!-- Card grid -->
+      <div id="climbs-list"></div>
+    </div>
+
+    <!-- ── EDIT VIEW ── -->
+    <div id="edit-view" class="view hidden">
+      <header class="top-bar">
+        <button class="back-btn" id="edit-back-btn">‹ Back</button>
+        <h1 class="top-bar-title" id="edit-title">Add Climb</h1>
+        <button class="btn btn-primary" id="save-climb-btn">Save</button>
+      </header>
+      <div class="edit-form">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="climb-name-input" placeholder="e.g. The Crimson Corner" class="form-input">
+        </div>
+        <div class="form-group">
+          <label>Photo</label>
+          <div class="photo-upload-area" id="photo-upload-area">
+            <img id="edit-photo-preview" class="photo-preview hidden" alt="Climb photo">
+            <div id="photo-placeholder" class="photo-placeholder">
+              <span>📷</span><span>Tap to add photo</span>
+            </div>
+            <input type="file" id="photo-input" accept="image/*" class="hidden">
           </div>
-          <input type="file" id="photo-input" accept="image/*" class="hidden">
         </div>
-      </div>
-      <div class="form-group">
-        <label>Grade</label>
-        <div class="grade-grid" id="grade-picker"></div>
-      </div>
-      <div class="form-group">
-        <label>Status</label>
-        <div class="status-picker" id="status-picker">
-          <button class="status-btn active" data-status="project">🎯 Project</button>
-          <button class="status-btn" data-status="attempted">💪 Attempted</button>
-          <button class="status-btn" data-status="sent">✅ Sent!</button>
+        <div class="form-group">
+          <label>Grade</label>
+          <div class="grade-grid" id="grade-picker"></div>
         </div>
-      </div>
-      <div class="form-group">
-        <label>Notes</label>
-        <textarea id="climb-notes-input" placeholder="Beta notes, moves, tips..." class="form-textarea" rows="4"></textarea>
-      </div>
-    </div>
-  </div>
-
-  <!-- DETAIL VIEW -->
-  <div id="detail-view" class="view hidden">
-    <header class="app-header">
-      <button class="back-btn" id="detail-back-btn">← Back</button>
-      <h1 id="detail-title">Climb</h1>
-      <div class="header-actions">
-        <button class="icon-btn" id="edit-climb-btn" title="Edit">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-          </svg>
-        </button>
-        <button class="icon-btn danger" id="delete-climb-btn" title="Delete">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="detail-content">
-      <div class="photo-canvas-container" id="photo-canvas-container">
-        <img id="detail-photo" class="detail-photo" alt="Climb photo" crossorigin="anonymous">
-        <canvas id="drawing-canvas"></canvas>
-        <div class="drawing-toolbar">
-          <button class="tool-btn active" data-tool="pen" title="Pen">✏️</button>
-          <button class="tool-btn" data-tool="arrow" title="Arrow">➡️</button>
-          <button class="tool-btn" data-tool="eraser" title="Eraser">🧹</button>
-          <div class="color-swatches">
-            <button class="color-swatch active" data-color="#FF6B35" style="background:#FF6B35" title="Orange"></button>
-            <button class="color-swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></button>
-            <button class="color-swatch" data-color="#FFD700" style="background:#FFD700" title="Yellow"></button>
-            <button class="color-swatch" data-color="#00E676" style="background:#00E676" title="Green"></button>
-            <button class="color-swatch" data-color="#FF1744" style="background:#FF1744" title="Red"></button>
+        <div class="form-group">
+          <label>Status</label>
+          <div class="status-picker" id="status-picker">
+            <button class="status-btn active" data-status="project">🎯 Project</button>
+            <button class="status-btn" data-status="attempted">💪 Attempted</button>
+            <button class="status-btn" data-status="sent">✅ Sent!</button>
           </div>
-          <button class="tool-btn" id="undo-btn" title="Undo">↩️</button>
-          <button class="tool-btn" id="clear-drawing-btn" title="Clear drawing">🗑️</button>
-          <button class="tool-btn" id="save-drawing-btn" title="Save drawing">💾</button>
         </div>
-      </div>
-      <div class="detail-info">
-        <div class="detail-grade-status">
-          <span class="grade-badge large" id="detail-grade"></span>
-          <span class="status-badge" id="detail-status"></span>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="climb-notes-input" placeholder="Beta notes, moves, tips…" class="form-textarea" rows="4"></textarea>
         </div>
-        <div class="detail-notes" id="detail-notes"></div>
-        <div class="detail-date" id="detail-date"></div>
       </div>
     </div>
-  </div>
 
-</div>
+    <!-- ── DETAIL VIEW ── -->
+    <div id="detail-view" class="view hidden">
+      <header class="top-bar">
+        <button class="back-btn" id="detail-back-btn">‹ Back</button>
+        <h1 class="top-bar-title" id="detail-title">Climb</h1>
+        <div class="top-bar-actions">
+          <button class="icon-btn" id="edit-climb-btn" title="Edit">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          </button>
+          <button class="icon-btn icon-danger" id="delete-climb-btn" title="Delete">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="detail-content">
+        <div class="photo-canvas-wrap" id="photo-canvas-container">
+          <img id="detail-photo" class="detail-photo" alt="" crossorigin="anonymous">
+          <canvas id="drawing-canvas"></canvas>
+          <div class="draw-toolbar">
+            <button class="tool-btn active" data-tool="pen">✏️</button>
+            <button class="tool-btn" data-tool="arrow">➡️</button>
+            <button class="tool-btn" data-tool="eraser">🧹</button>
+            <div class="color-swatches">
+              <button class="color-swatch active" data-color="#FF6B35" style="background:#FF6B35"></button>
+              <button class="color-swatch" data-color="#FFFFFF" style="background:#fff;border-color:rgba(255,255,255,.3)"></button>
+              <button class="color-swatch" data-color="#FFD700" style="background:#FFD700"></button>
+              <button class="color-swatch" data-color="#00E676" style="background:#00E676"></button>
+              <button class="color-swatch" data-color="#FF1744" style="background:#FF1744"></button>
+            </div>
+            <button class="tool-btn" id="undo-btn">↩️</button>
+            <button class="tool-btn" id="clear-drawing-btn">🗑️</button>
+            <button class="tool-btn" id="save-drawing-btn">💾</button>
+          </div>
+        </div>
+        <div class="detail-info">
+          <div class="detail-row">
+            <span class="grade-badge large" id="detail-grade"></span>
+            <span class="detail-status" id="detail-status"></span>
+          </div>
+          <div class="detail-notes" id="detail-notes"></div>
+          <div class="detail-date" id="detail-date"></div>
+        </div>
+      </div>
+    </div>
 
-<!-- TOAST -->
+  </div><!-- /main-content -->
+</div><!-- /app-screen -->
+
 <div id="toast" class="toast hidden"></div>
 
-<!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>

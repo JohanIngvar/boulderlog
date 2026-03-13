@@ -1,58 +1,42 @@
 'use strict';
 
+// ── THEME INIT (before anything renders) ───────────────────
+(function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+
 // ── SPLASH ANIMATION ───────────────────────────────────────
 (function runSplash() {
-  const splash = document.getElementById('splash');
-  const text   = document.getElementById('splash-text');
+  const splash  = document.getElementById('splash');
+  const text    = document.getElementById('splash-text');
   if (!splash || !text) return;
 
   // Stagger letter entrance
-  const letters = text.querySelectorAll('span:not(.splash-space)');
-  letters.forEach((el, i) => {
-    el.style.animationDelay = `${0.25 + i * 0.06}s`;
+  text.querySelectorAll('span:not(.splash-space)').forEach((el, i) => {
+    el.style.animationDelay = `${0.22 + i * 0.055}s`;
   });
 
-  // After letters appear, shake then crumble
+  // Exit: content zooms out, background fades to app bg
   setTimeout(() => {
-    splash.classList.add('shaking');
+    const content = splash.querySelector('.splash-content');
+    if (content) content.classList.add('s-exit');
 
+    // Small delay then cross-fade background
     setTimeout(() => {
-      // Spawn dust particles
-      for (let p = 0; p < 22; p++) {
-        const d = document.createElement('div');
-        d.className = 'splash-dust';
-        const angle = Math.random() * Math.PI * 2;
-        const dist  = 60 + Math.random() * 140;
-        d.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
-        d.style.setProperty('--dy', `${Math.sin(angle) * dist + 30}px`);
-        d.style.setProperty('--dd', `${Math.random() * 0.25}s`);
-        d.style.left = `${40 + Math.random() * 20}%`;
-        d.style.top  = '50%';
-        splash.appendChild(d);
-      }
-
-      // Crumble each letter
-      letters.forEach((el, i) => {
-        const cx = (Math.random() - 0.5) * 260;
-        const cy = 60 + Math.random() * 180;
-        const cr = (Math.random() - 0.5) * 220;
-        el.style.setProperty('--cx', `${cx}px`);
-        el.style.setProperty('--cy', `${cy}px`);
-        el.style.setProperty('--cr', `${cr}deg`);
-        el.style.setProperty('--cd', `${i * 0.045}s`);
-        // force reflow so class change triggers animation
-        void el.offsetWidth;
-        el.classList.add('crumble');
-      });
-
-      // Fade out and remove splash
+      const bg = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg').trim() || '#000';
+      splash.style.transition = 'background .55s ease';
+      splash.style.background = bg;
       setTimeout(() => {
-        splash.classList.add('fading');
-        setTimeout(() => splash.remove(), 420);
-      }, 750);
-
-    }, 320); // after shake
-  }, 1600);  // hold time before crumble
+        splash.style.transition += ', opacity .25s ease';
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 280);
+      }, 380);
+    }, 260);
+  }, 2050);
 })();
 
 // ── CONSTANTS ──────────────────────────────────────────────
@@ -63,29 +47,32 @@ const GRADE_COLORS = {
   'V9':'#673AB7','V10':'#3F51B5','V11':'#2196F3','V12':'#795548','V13':'#607D8B',
   'V14':'#37474F','V15':'#263238','V16':'#1a1a2e','V17':'#000000'
 };
+const STATUS_LABELS = { project: '🎯 Project', attempted: '💪 Attempted', sent: '✅ Sent' };
+const STATUS_ORDER  = ['project', 'attempted', 'sent'];
 
 // ── STATE ──────────────────────────────────────────────────
-let sb; // Supabase client
-let currentUser = null;
-let climbs = [];
+let sb;
+let currentUser  = null;
+let climbs       = [];
 let currentClimb = null;
-let editMode = false;
-let formGrade = 'V5';
-let formStatus = 'project';
+let editMode     = false;
+let formGrade    = 'V5';
+let formStatus   = 'project';
 let formPhotoFile = null;
-let formPhotoUrl = null;
-let activeFilter = 'all';
-let searchQuery = '';
-let authMode = 'signin'; // 'signin' | 'signup'
+let formPhotoUrl  = null;
+let activeSection = 'all';
+let searchQuery   = '';
+let authMode      = 'signin';
+let draggedId     = null;
 
-// Drawing state
+// Drawing
 let canvas, ctx;
-let isDrawing = false;
-let drawTool = 'pen';
-let drawColor = '#FF6B35';
-let drawSize = 4;
-let undoStack = [];
-let arrowStart = null;
+let isDrawing       = false;
+let drawTool        = 'pen';
+let drawColor       = '#FF6B35';
+let drawSize        = 4;
+let undoStack       = [];
+let arrowStart      = null;
 let drawingModified = false;
 
 // ── INIT ───────────────────────────────────────────────────
@@ -96,10 +83,14 @@ document.addEventListener('DOMContentLoaded', () => {
   setupStatusPicker();
   setupEventListeners();
   setupAuthUI();
+  setupNav();
+  updateThemeUI();
 
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user ?? null;
     if (currentUser) {
+      const emailEl = document.getElementById('sidebar-user-email');
+      if (emailEl) emailEl.textContent = currentUser.email;
       showApp();
       loadClimbs();
     } else {
@@ -112,12 +103,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ── THEME ──────────────────────────────────────────────────
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next   = isDark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateThemeUI();
+}
+
+function updateThemeUI() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const mobileBtn  = document.getElementById('theme-toggle-mobile');
+  const sbIcon     = document.getElementById('theme-icon-sidebar');
+  const sbLabel    = document.getElementById('theme-label-sidebar');
+  const themeMeta  = document.getElementById('theme-meta');
+  if (mobileBtn)  mobileBtn.textContent  = isDark ? '☀️' : '🌙';
+  if (sbIcon)     sbIcon.textContent     = isDark ? '☀️' : '🌙';
+  if (sbLabel)    sbLabel.textContent    = isDark ? 'Light Mode' : 'Dark Mode';
+  if (themeMeta)  themeMeta.content      = isDark ? '#000000' : '#F5F5F7';
+}
+
 // ── AUTH UI ────────────────────────────────────────────────
 function setupAuthUI() {
-  const tabSignIn = document.getElementById('tab-signin');
-  const tabSignUp = document.getElementById('tab-signup');
-  const confirmField = document.getElementById('auth-confirm');
-  const submitBtn = document.getElementById('auth-submit-btn');
+  const tabSignIn      = document.getElementById('tab-signin');
+  const tabSignUp      = document.getElementById('tab-signup');
+  const confirmField   = document.getElementById('auth-confirm');
+  const submitBtn      = document.getElementById('auth-submit-btn');
 
   tabSignIn.addEventListener('click', () => {
     authMode = 'signin';
@@ -125,22 +137,19 @@ function setupAuthUI() {
     tabSignUp.classList.remove('active');
     confirmField.classList.add('hidden');
     submitBtn.textContent = 'Sign In';
-    clearAuthError();
+    clearAuthMessages();
   });
-
   tabSignUp.addEventListener('click', () => {
     authMode = 'signup';
     tabSignUp.classList.add('active');
     tabSignIn.classList.remove('active');
     confirmField.classList.remove('hidden');
     submitBtn.textContent = 'Create Account';
-    clearAuthError();
+    clearAuthMessages();
   });
 
   submitBtn.addEventListener('click', handleAuth);
-
-  // Allow Enter key to submit
-  ['auth-email', 'auth-password', 'auth-confirm'].forEach(id => {
+  ['auth-email','auth-password','auth-confirm'].forEach(id => {
     document.getElementById(id)?.addEventListener('keydown', e => {
       if (e.key === 'Enter') handleAuth();
     });
@@ -148,19 +157,15 @@ function setupAuthUI() {
 }
 
 async function handleAuth() {
-  const email = document.getElementById('auth-email').value.trim();
+  const email    = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
-  const confirm = document.getElementById('auth-confirm').value;
-  const btn = document.getElementById('auth-submit-btn');
+  const confirm  = document.getElementById('auth-confirm').value;
+  const btn      = document.getElementById('auth-submit-btn');
 
-  if (!email || !password) {
-    showAuthError('Please enter your email and password.');
-    return;
-  }
+  if (!email || !password) { showAuthError('Please enter your email and password.'); return; }
 
-  btn.disabled = true;
-  btn.textContent = '...';
-  clearAuthError();
+  btn.disabled = true; btn.textContent = '…';
+  clearAuthMessages();
 
   try {
     if (authMode === 'signup') {
@@ -168,42 +173,38 @@ async function handleAuth() {
       if (password.length < 6) throw new Error('Password must be at least 6 characters.');
       const { error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
-      showAuthNote('✅ Check your email to confirm your account, then sign in.');
-      btn.textContent = 'Create Account';
+      showAuthNote('✅ Check your email to confirm, then sign in.');
     } else {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
     }
   } catch (err) {
     showAuthError(err.message);
-    btn.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
   } finally {
-    btn.disabled = false;
+    btn.disabled   = false;
+    btn.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
   }
 }
 
 function showAuthError(msg) {
   const el = document.getElementById('auth-error');
-  el.textContent = msg;
-  el.classList.remove('hidden');
+  el.textContent = msg; el.classList.remove('hidden');
 }
-
-function clearAuthError() {
-  const el = document.getElementById('auth-error');
-  el.textContent = '';
-  el.classList.add('hidden');
-  document.getElementById('auth-note').textContent = '';
-}
-
 function showAuthNote(msg) {
-  document.getElementById('auth-note').textContent = msg;
+  const el = document.getElementById('auth-note');
+  el.textContent = msg; el.classList.remove('hidden');
+}
+function clearAuthMessages() {
+  ['auth-error','auth-note'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = ''; el.classList.add('hidden');
+  });
 }
 
 function showLogin() {
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('app-screen').classList.add('hidden');
 }
-
 function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-screen').classList.remove('hidden');
@@ -212,12 +213,11 @@ function showApp() {
 
 // ── SUPABASE DATA ──────────────────────────────────────────
 async function loadClimbs() {
-  const grid = document.getElementById('climbs-grid');
-  grid.innerHTML = '<div class="loading">Loading your climbs...</div>';
+  const list = document.getElementById('climbs-list');
+  if (list) list.innerHTML = '<div class="list-loading">Loading…</div>';
   try {
     const { data, error } = await sb
-      .from('climbs')
-      .select('*')
+      .from('climbs').select('*')
       .order('created_at', { ascending: false });
     if (error) throw error;
     climbs = data || [];
@@ -231,24 +231,16 @@ async function loadClimbs() {
 async function saveClimbData(data) {
   try {
     if (editMode && currentClimb) {
-      const { error } = await sb
-        .from('climbs')
+      const { error } = await sb.from('climbs')
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq('id', currentClimb.id);
       if (error) throw error;
       const idx = climbs.findIndex(c => c.id === currentClimb.id);
       if (idx !== -1) climbs[idx] = { ...climbs[idx], ...data };
     } else {
-      const { data: inserted, error } = await sb
-        .from('climbs')
-        .insert({
-          ...data,
-          user_id: currentUser.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+      const { data: inserted, error } = await sb.from('climbs')
+        .insert({ ...data, user_id: currentUser.id, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .select().single();
       if (error) throw error;
       climbs.unshift(inserted);
     }
@@ -256,32 +248,27 @@ async function saveClimbData(data) {
     showToast(editMode ? 'Climb updated!' : 'Climb added!');
     showView('list-view');
   } catch (err) {
-    showToast('Error saving climb', 'error');
-    console.error(err);
+    showToast('Error saving', 'error'); console.error(err);
   }
 }
 
 async function quickSetStatus(climbId, newStatus) {
   try {
-    const { error } = await sb
-      .from('climbs')
+    const { error } = await sb.from('climbs')
       .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq('id', climbId);
     if (error) throw error;
     const idx = climbs.findIndex(c => c.id === climbId);
     if (idx !== -1) climbs[idx].status = newStatus;
-    // Re-render kanban so card moves to new column
     renderClimbsList();
-    // Update detail view badge if open
     if (currentClimb && currentClimb.id === climbId) {
       currentClimb.status = newStatus;
-      const sc = { project: '🎯 Project', attempted: '💪 Attempted', sent: '✅ Sent!' };
       const el = document.getElementById('detail-status');
-      if (el) el.textContent = sc[newStatus];
+      if (el) el.textContent = STATUS_LABELS[newStatus];
     }
+    showToast(`Moved to ${STATUS_LABELS[newStatus]}`);
   } catch (err) {
-    showToast('Error updating status', 'error');
-    console.error(err);
+    showToast('Error updating status', 'error'); console.error(err);
   }
 }
 
@@ -294,28 +281,20 @@ async function deleteClimbById(climbId) {
     showToast('Climb deleted');
     showView('list-view');
   } catch (err) {
-    showToast('Error deleting climb', 'error');
-    console.error(err);
+    showToast('Error deleting', 'error'); console.error(err);
   }
 }
 
 // ── STORAGE ────────────────────────────────────────────────
 async function uploadFile(file, bucket, path) {
-  const { error } = await sb.storage
-    .from(bucket)
-    .upload(path, file, { contentType: file.type, upsert: true });
+  const { error } = await sb.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: true });
   if (error) throw error;
-  const { data } = sb.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  return sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
-
 async function uploadBlob(blob, bucket, path) {
-  const { error } = await sb.storage
-    .from(bucket)
-    .upload(path, blob, { contentType: 'image/png', upsert: true });
+  const { error } = await sb.storage.from(bucket).upload(path, blob, { contentType: 'image/png', upsert: true });
   if (error) throw error;
-  const { data } = sb.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  return sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
 // ── VIEWS ──────────────────────────────────────────────────
@@ -325,158 +304,148 @@ function showView(id) {
   if (id === 'detail-view') setTimeout(initCanvas, 50);
 }
 
-// ── DRAG STATE ─────────────────────────────────────────────
-let draggedId = null;
-
-// ── LIST / KANBAN VIEW ─────────────────────────────────────
-function renderClimbsList() {
-  const cols = {
-    project:  document.getElementById('col-project'),
-    attempted: document.getElementById('col-attempted'),
-    sent:     document.getElementById('col-sent'),
-  };
-  if (!cols.project) return;
-
-  const q = searchQuery.toLowerCase();
-  const filtered = climbs.filter(c =>
-    !q || (c.name || '').toLowerCase().includes(q) || (c.grade || '').toLowerCase().includes(q)
-  );
-
-  // Clear & update counts
-  ['project','attempted','sent'].forEach(s => {
-    cols[s].innerHTML = '';
-    const cnt = document.getElementById(`count-${s}`);
-    if (cnt) cnt.textContent = filtered.filter(c => c.status === s).length;
+// ── NAVIGATION ─────────────────────────────────────────────
+function setupNav() {
+  // Sidebar nav items
+  document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+    item.addEventListener('click', () => setActiveSection(item.dataset.section));
+    // Drop target (desktop drag)
+    const s = item.dataset.section;
+    if (s === 'all') return;
+    item.addEventListener('dragover', e => { if (!draggedId) return; e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault(); item.classList.remove('drag-over');
+      if (draggedId) {
+        const c = climbs.find(c => c.id === draggedId);
+        if (c && c.status !== s) quickSetStatus(draggedId, s);
+      }
+    });
   });
 
+  // Segment tabs (mobile)
+  document.querySelectorAll('.seg-tab[data-section]').forEach(tab => {
+    tab.addEventListener('click', () => setActiveSection(tab.dataset.section));
+  });
+}
+
+function setActiveSection(section) {
+  activeSection = section;
+  document.querySelectorAll('.nav-item[data-section]').forEach(el =>
+    el.classList.toggle('active', el.dataset.section === section));
+  document.querySelectorAll('.seg-tab[data-section]').forEach(el =>
+    el.classList.toggle('active', el.dataset.section === section));
+  renderClimbsList();
+}
+
+function updateNavCounts() {
+  const counts = { all: climbs.length, project: 0, attempted: 0, sent: 0 };
+  climbs.forEach(c => { if (counts[c.status] !== undefined) counts[c.status]++; });
+  ['all','project','attempted','sent'].forEach(s => {
+    document.getElementById(`nav-count-${s}`)?.setAttribute('textContent', counts[s]) ||
+      (el => el && (el.textContent = counts[s]))(document.getElementById(`nav-count-${s}`));
+    const seg = document.getElementById(`seg-count-${s}`);
+    if (seg) seg.textContent = counts[s];
+    const nav = document.getElementById(`nav-count-${s}`);
+    if (nav) nav.textContent = counts[s];
+  });
+}
+
+// ── LIST / CARD RENDER ─────────────────────────────────────
+function renderClimbsList() {
+  const list = document.getElementById('climbs-list');
+  if (!list) return;
+
+  updateNavCounts();
+
+  const q = searchQuery.toLowerCase();
+  const filtered = climbs.filter(c => {
+    const matchSection = activeSection === 'all' || c.status === activeSection;
+    const matchSearch  = !q || (c.name || '').toLowerCase().includes(q) || (c.grade || '').toLowerCase().includes(q);
+    return matchSection && matchSearch;
+  });
+
+  list.innerHTML = '';
+
   if (filtered.length === 0) {
-    cols.project.innerHTML = `<div class="kanban-empty">${climbs.length === 0 ? 'No climbs yet' : 'No results'}</div>`;
+    list.innerHTML = `
+      <div class="list-empty">
+        <div class="list-empty-icon">${climbs.length === 0 ? '🧗' : '🔍'}</div>
+        <div class="list-empty-title">${climbs.length === 0 ? 'No climbs yet' : 'No results'}</div>
+        <div class="list-empty-sub">${climbs.length === 0 ? 'Tap + Add to log your first climb' : 'Try a different search'}</div>
+      </div>`;
     return;
   }
 
-  filtered.forEach(c => {
-    const col = cols[c.status] || cols.project;
-    const color = GRADE_COLORS[c.grade] || '#9E9E9E';
+  filtered.forEach((c, i) => {
+    const color     = GRADE_COLORS[c.grade] || '#9E9E9E';
     const textColor = isLight(color) ? '#000' : '#fff';
-
-    const card = document.createElement('div');
-    card.className = 'climb-card';
+    const card      = document.createElement('div');
+    card.className  = 'climb-card';
     card.dataset.id = c.id;
-    card.innerHTML = `
-      ${c.photo_url
-        ? `<div class="card-photo-wrapper">
-             <img class="card-photo" src="${c.photo_url}" alt="${esc(c.name)}" loading="lazy">
-             ${c.drawing_url ? `<img class="card-drawing-overlay" src="${c.drawing_url}" alt="">` : ''}
-           </div>`
-        : `<div class="card-photo-placeholder" style="background:${color}20"><span style="font-size:2rem">🧗</span></div>`}
-      <div class="card-info">
-        <div class="card-header">
-          <span class="grade-badge" style="background:${color};color:${textColor}">${esc(c.grade || '?')}</span>
-          <div class="card-name">${esc(c.name || 'Unnamed')}</div>
-        </div>
-      </div>`;
+    card.style.animationDelay = `${Math.min(i, 8) * 0.035}s`;
 
+    card.innerHTML = c.photo_url
+      ? `<div class="card-photo-wrap">
+           <img class="card-photo" src="${esc(c.photo_url)}" alt="${esc(c.name || '')}" loading="lazy">
+           ${c.drawing_url ? `<img class="card-draw-overlay" src="${esc(c.drawing_url)}" alt="">` : ''}
+           <span class="card-grade-chip" style="background:${color};color:${textColor}">${esc(c.grade || '?')}</span>
+         </div>
+         <div class="card-info">
+           <div class="card-name">${esc(c.name || 'Unnamed')}</div>
+           <div class="card-foot">
+             <button class="card-status-btn">${STATUS_LABELS[c.status] || STATUS_LABELS.project}</button>
+           </div>
+         </div>`
+      : `<div class="card-no-photo">
+           <div class="card-color-bar" style="background:${color}"></div>
+           <span>🧗</span>
+         </div>
+         <div class="card-info">
+           <div class="card-name">${esc(c.name || 'Unnamed')}</div>
+           <div class="card-foot">
+             <span class="card-grade-pill" style="background:${color};color:${textColor}">${esc(c.grade || '?')}</span>
+             <button class="card-status-btn">${STATUS_LABELS[c.status] || STATUS_LABELS.project}</button>
+           </div>
+         </div>`;
+
+    // Tap card → detail
     card.addEventListener('click', () => openClimbDetail(c.id));
-    setupCardDrag(card, c.id);
-    col.appendChild(card);
-  });
 
-  // Desktop drop zones
-  Object.values(cols).forEach(setupDropZone);
-}
-
-function setupCardDrag(card, climbId) {
-  // ── Desktop (HTML5 drag) ──
-  card.setAttribute('draggable', 'true');
-  card.addEventListener('dragstart', e => {
-    draggedId = climbId;
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => card.classList.add('dragging'), 0);
-  });
-  card.addEventListener('dragend', () => {
-    card.classList.remove('dragging');
-    document.querySelectorAll('.kanban-body').forEach(b => b.classList.remove('drag-over'));
-    draggedId = null;
-  });
-
-  // ── Mobile (touch drag) ──
-  let clone = null;
-  card.addEventListener('touchstart', e => {
-    draggedId = climbId;
-    const rect = card.getBoundingClientRect();
-    clone = card.cloneNode(true);
-    Object.assign(clone.style, {
-      position: 'fixed', pointerEvents: 'none', zIndex: '9998',
-      width: rect.width + 'px', left: rect.left + 'px', top: rect.top + 'px',
-      opacity: '0.85', transform: 'scale(1.04) rotate(1.5deg)',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.5)', borderRadius: '12px',
-      transition: 'transform 0.1s',
+    // Status badge → cycle to next status
+    const statusBtn = card.querySelector('.card-status-btn');
+    statusBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const next = STATUS_ORDER[(STATUS_ORDER.indexOf(c.status) + 1) % STATUS_ORDER.length];
+      quickSetStatus(c.id, next);
     });
-    document.body.appendChild(clone);
-    card.style.opacity = '0.25';
-  }, { passive: true });
 
-  card.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const t = e.touches[0];
-    if (clone) {
-      clone.style.left = t.clientX - clone.offsetWidth / 2 + 'px';
-      clone.style.top  = t.clientY - 70 + 'px';
-    }
-    const el = document.elementFromPoint(t.clientX, t.clientY);
-    const over = el?.closest('.kanban-body');
-    document.querySelectorAll('.kanban-body').forEach(b => b.classList.toggle('drag-over', b === over));
-  }, { passive: false });
+    // Desktop drag
+    card.setAttribute('draggable', 'true');
+    card.addEventListener('dragstart', e => {
+      draggedId = c.id;
+      e.dataTransfer.effectAllowed = 'move';
+      requestAnimationFrame(() => card.classList.add('dragging'));
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      draggedId = null;
+    });
 
-  card.addEventListener('touchend', e => {
-    const t = e.changedTouches[0];
-    if (clone) { clone.remove(); clone = null; }
-    card.style.opacity = '';
-    document.querySelectorAll('.kanban-body').forEach(b => b.classList.remove('drag-over'));
-    const el = document.elementFromPoint(t.clientX, t.clientY);
-    const col = el?.closest('.kanban-body');
-    if (col && draggedId) {
-      const newStatus = col.dataset.status;
-      const climb = climbs.find(c => c.id === draggedId);
-      if (climb && climb.status !== newStatus) {
-        quickSetStatus(draggedId, newStatus);
-      }
-    }
-    draggedId = null;
+    list.appendChild(card);
   });
 }
 
-function setupDropZone(body) {
-  body.addEventListener('dragover', e => {
-    e.preventDefault();
-    body.classList.add('drag-over');
-  });
-  body.addEventListener('dragleave', e => {
-    if (!body.contains(e.relatedTarget)) body.classList.remove('drag-over');
-  });
-  body.addEventListener('drop', e => {
-    e.preventDefault();
-    body.classList.remove('drag-over');
-    if (draggedId) {
-      const newStatus = body.dataset.status;
-      const climb = climbs.find(c => c.id === draggedId);
-      if (climb && climb.status !== newStatus) {
-        quickSetStatus(draggedId, newStatus);
-      }
-    }
-  });
-}
-
-// ── ADD / EDIT VIEW ────────────────────────────────────────
+// ── ADD / EDIT ─────────────────────────────────────────────
 function openAddClimb() {
-  editMode = false;
+  editMode     = false;
   currentClimb = null;
-  formGrade = 'V5';
-  formStatus = 'project';
+  formGrade    = 'V5';
+  formStatus   = activeSection !== 'all' ? activeSection : 'project';
   formPhotoFile = null;
-  formPhotoUrl = null;
+  formPhotoUrl  = null;
   document.getElementById('edit-title').textContent = 'Add Climb';
-  document.getElementById('climb-name-input').value = '';
+  document.getElementById('climb-name-input').value  = '';
   document.getElementById('climb-notes-input').value = '';
   document.getElementById('edit-photo-preview').classList.add('hidden');
   document.getElementById('photo-placeholder').classList.remove('hidden');
@@ -486,19 +455,18 @@ function openAddClimb() {
 }
 
 function openEditClimb(climb) {
-  editMode = true;
-  currentClimb = climb;
-  formGrade = climb.grade || 'V5';
-  formStatus = climb.status || 'project';
+  editMode      = true;
+  currentClimb  = climb;
+  formGrade     = climb.grade  || 'V5';
+  formStatus    = climb.status || 'project';
   formPhotoFile = null;
-  formPhotoUrl = climb.photo_url || null;
+  formPhotoUrl  = climb.photo_url || null;
   document.getElementById('edit-title').textContent = 'Edit Climb';
-  document.getElementById('climb-name-input').value = climb.name || '';
+  document.getElementById('climb-name-input').value  = climb.name  || '';
   document.getElementById('climb-notes-input').value = climb.notes || '';
   const preview = document.getElementById('edit-photo-preview');
   if (climb.photo_url) {
-    preview.src = climb.photo_url;
-    preview.classList.remove('hidden');
+    preview.src = climb.photo_url; preview.classList.remove('hidden');
     document.getElementById('photo-placeholder').classList.add('hidden');
   } else {
     preview.classList.add('hidden');
@@ -514,34 +482,29 @@ async function handleSaveClimb() {
   if (!name) { showToast('Please enter a name', 'error'); return; }
 
   const btn = document.getElementById('save-climb-btn');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
     let photoUrl = formPhotoUrl;
     if (formPhotoFile) {
-      const ext = formPhotoFile.name.split('.').pop() || 'jpg';
+      const ext  = formPhotoFile.name.split('.').pop() || 'jpg';
       const path = `${currentUser.id}/${Date.now()}.${ext}`;
-      photoUrl = await uploadFile(formPhotoFile, 'climb-photos', path);
+      photoUrl   = await uploadFile(formPhotoFile, 'climb-photos', path);
     }
     await saveClimbData({
-      name,
-      grade: formGrade,
-      status: formStatus,
+      name, grade: formGrade, status: formStatus,
       notes: document.getElementById('climb-notes-input').value.trim(),
-      photo_url: photoUrl || null,
+      photo_url:   photoUrl || null,
       drawing_url: (editMode && currentClimb) ? (currentClimb.drawing_url || null) : null,
     });
   } catch (err) {
-    showToast('Error saving', 'error');
-    console.error(err);
+    showToast('Error saving', 'error'); console.error(err);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Save';
+    btn.disabled = false; btn.textContent = 'Save';
   }
 }
 
-// ── DETAIL VIEW ────────────────────────────────────────────
+// ── DETAIL ─────────────────────────────────────────────────
 function openClimbDetail(climbId) {
   const climb = climbs.find(c => c.id === climbId);
   if (!climb) return;
@@ -549,15 +512,13 @@ function openClimbDetail(climbId) {
 
   document.getElementById('detail-title').textContent = climb.name || 'Climb';
 
-  const photo = document.getElementById('detail-photo');
+  const photo     = document.getElementById('detail-photo');
   const container = document.getElementById('photo-canvas-container');
   if (climb.photo_url) {
-    photo.src = climb.photo_url;
-    photo.classList.remove('hidden');
+    photo.src = climb.photo_url; photo.classList.remove('hidden');
     container.classList.remove('no-photo');
   } else {
-    photo.src = '';
-    photo.classList.add('hidden');
+    photo.src = ''; photo.classList.add('hidden');
     container.classList.add('no-photo');
   }
 
@@ -567,17 +528,13 @@ function openClimbDetail(climbId) {
   gradeEl.style.background = color;
   gradeEl.style.color = isLight(color) ? '#000' : '#fff';
 
-  const sc = { project: '🎯 Project', attempted: '💪 Attempted', sent: '✅ Sent!' };
-  document.getElementById('detail-status').textContent = sc[climb.status] || sc.project;
-  document.getElementById('detail-notes').textContent = climb.notes || '';
+  document.getElementById('detail-status').textContent = STATUS_LABELS[climb.status] || STATUS_LABELS.project;
+  document.getElementById('detail-notes').textContent  = climb.notes || '';
 
   const dateEl = document.getElementById('detail-date');
-  if (climb.created_at) {
-    const d = new Date(climb.created_at);
-    dateEl.textContent = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  } else {
-    dateEl.textContent = '';
-  }
+  dateEl.textContent = climb.created_at
+    ? new Date(climb.created_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
+    : '';
 
   showView('detail-view');
 }
@@ -587,96 +544,75 @@ function initCanvas() {
   canvas = document.getElementById('drawing-canvas');
   if (!canvas) return;
   ctx = canvas.getContext('2d');
-  undoStack = [];
-  drawingModified = false;
+  undoStack = []; drawingModified = false;
 
-  const photo = document.getElementById('detail-photo');
+  const photo     = document.getElementById('detail-photo');
   const container = document.getElementById('photo-canvas-container');
 
   const setup = () => {
     if (photo && !photo.classList.contains('hidden') && photo.naturalWidth > 0) {
-      canvas.width = photo.naturalWidth;
-      canvas.height = photo.naturalHeight;
+      canvas.width = photo.naturalWidth; canvas.height = photo.naturalHeight;
     } else {
-      canvas.width = container.clientWidth || 400;
-      canvas.height = container.clientHeight || 300;
+      canvas.width = container.clientWidth || 400; canvas.height = container.clientHeight || 300;
     }
-    if (currentClimb && currentClimb.drawing_url) {
-      loadDrawing(currentClimb.drawing_url);
-    } else {
-      saveUndo();
-    }
+    if (currentClimb?.drawing_url) loadDrawing(currentClimb.drawing_url);
+    else saveUndo();
   };
 
   if (photo && !photo.classList.contains('hidden')) {
     if (photo.complete && photo.naturalWidth > 0) setup();
     else photo.onload = setup;
-  } else {
-    setup();
-  }
+  } else setup();
 
   setupCanvasEvents();
 }
 
 function loadDrawing(url) {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    saveUndo();
-  };
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height); saveUndo(); };
   img.onerror = () => saveUndo();
   img.src = url + '?t=' + Date.now();
 }
 
 function saveUndo() {
-  undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  undoStack.push(ctx.getImageData(0,0,canvas.width,canvas.height));
   if (undoStack.length > 20) undoStack.shift();
 }
 
 function setupCanvasEvents() {
   canvas.addEventListener('mousedown', onStart);
   canvas.addEventListener('mousemove', onMove);
-  canvas.addEventListener('mouseup', onEnd);
-  canvas.addEventListener('mouseleave', onEnd);
+  canvas.addEventListener('mouseup',   onEnd);
+  canvas.addEventListener('mouseleave',onEnd);
   canvas.addEventListener('touchstart', e => { e.preventDefault(); onStart(e); }, { passive: false });
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e); }, { passive: false });
-  canvas.addEventListener('touchend', e => { e.preventDefault(); onEnd(e); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); onMove(e);  }, { passive: false });
+  canvas.addEventListener('touchend',   e => { e.preventDefault(); onEnd(e);   }, { passive: false });
 }
 
 function getPos(e) {
   const rect = canvas.getBoundingClientRect();
-  const sx = canvas.width / rect.width;
-  const sy = canvas.height / rect.height;
+  const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
   const src = e.touches ? e.touches[0] : e;
   return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
 }
 
 function onStart(e) {
-  isDrawing = true;
-  drawingModified = true;
+  isDrawing = true; drawingModified = true;
   const pos = getPos(e);
   saveUndo();
   if (drawTool === 'arrow') {
     arrowStart = pos;
   } else {
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    ctx.lineWidth = drawSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    ctx.lineWidth = drawSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (drawTool === 'eraser') {
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.strokeStyle = 'rgba(0,0,0,1)';
-      ctx.lineWidth = drawSize * 4;
+      ctx.strokeStyle = 'rgba(0,0,0,1)'; ctx.lineWidth = drawSize * 4;
     } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = drawColor;
+      ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = drawColor;
     }
   }
 }
-
 function onMove(e) {
   if (!isDrawing) return;
   const pos = getPos(e);
@@ -686,24 +622,17 @@ function onMove(e) {
     ctx.globalCompositeOperation = 'source-over';
     drawArrow(arrowStart.x, arrowStart.y, pos.x, pos.y);
   } else if (drawTool !== 'arrow') {
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
+    ctx.lineTo(pos.x, pos.y); ctx.stroke();
   }
 }
-
 function onEnd(e) {
-  if (!isDrawing) return;
-  isDrawing = false;
+  if (!isDrawing) return; isDrawing = false;
   if (drawTool === 'arrow' && arrowStart) {
     let pos;
-    if (e.changedTouches && e.changedTouches[0]) {
-      const t = e.changedTouches[0];
-      const rect = canvas.getBoundingClientRect();
-      const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
-      pos = { x: (t.clientX - rect.left) * sx, y: (t.clientY - rect.top) * sy };
-    } else {
-      pos = getPos(e);
-    }
+    if (e.changedTouches?.[0]) {
+      const t = e.changedTouches[0], rect = canvas.getBoundingClientRect();
+      pos = { x: (t.clientX - rect.left) * (canvas.width / rect.width), y: (t.clientY - rect.top) * (canvas.height / rect.height) };
+    } else pos = getPos(e);
     const saved = undoStack[undoStack.length - 1];
     if (saved) ctx.putImageData(saved, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
@@ -712,69 +641,45 @@ function onEnd(e) {
   }
   ctx.globalCompositeOperation = 'source-over';
 }
-
 function drawArrow(x1, y1, x2, y2) {
   const headLen = Math.max(14, drawSize * 5);
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.strokeStyle = drawColor;
-  ctx.lineWidth = drawSize;
-  ctx.lineCap = 'round';
-  ctx.stroke();
+  const angle   = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = drawColor; ctx.lineWidth = drawSize; ctx.lineCap = 'round'; ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/6), y2 - headLen * Math.sin(angle - Math.PI/6));
   ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/6), y2 - headLen * Math.sin(angle + Math.PI/6));
   ctx.stroke();
 }
 
 function undo() {
-  if (undoStack.length <= 1) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    undoStack = [];
-    return;
-  }
-  undoStack.pop();
-  ctx.putImageData(undoStack[undoStack.length - 1], 0, 0);
+  if (undoStack.length <= 1) { ctx.clearRect(0,0,canvas.width,canvas.height); undoStack = []; return; }
+  undoStack.pop(); ctx.putImageData(undoStack[undoStack.length - 1], 0, 0);
 }
-
 function clearDrawing() {
   if (!confirm('Clear drawing?')) return;
-  saveUndo();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawingModified = true;
+  saveUndo(); ctx.clearRect(0,0,canvas.width,canvas.height); drawingModified = true;
 }
-
 async function saveDrawing() {
   if (!canvas || !currentClimb) return;
   const btn = document.getElementById('save-drawing-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳';
+  btn.disabled = true; btn.textContent = '⏳';
   try {
     const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
     const path = `${currentUser.id}/${currentClimb.id}.png`;
-    const url = await uploadBlob(blob, 'climb-drawings', path);
-
-    const { error } = await sb
-      .from('climbs')
-      .update({ drawing_url: url, updated_at: new Date().toISOString() })
-      .eq('id', currentClimb.id);
+    const url  = await uploadBlob(blob, 'climb-drawings', path);
+    const { error } = await sb.from('climbs').update({ drawing_url: url, updated_at: new Date().toISOString() }).eq('id', currentClimb.id);
     if (error) throw error;
-
     currentClimb.drawing_url = url;
     const idx = climbs.findIndex(c => c.id === currentClimb.id);
     if (idx !== -1) climbs[idx].drawing_url = url;
-    drawingModified = false;
-    showToast('Drawing saved!');
+    drawingModified = false; showToast('Drawing saved!');
   } catch (err) {
-    showToast('Error saving drawing', 'error');
-    console.error(err);
+    showToast('Error saving drawing', 'error'); console.error(err);
   } finally {
-    btn.disabled = false;
-    btn.textContent = '💾';
+    btn.disabled = false; btn.textContent = '💾';
   }
 }
 
@@ -782,18 +687,15 @@ async function saveDrawing() {
 function setupGradePicker() {
   const container = document.getElementById('grade-picker');
   container.innerHTML = GRADES.map(g => {
-    const c = GRADE_COLORS[g];
-    const tc = isLight(c) ? '#000' : '#fff';
+    const c = GRADE_COLORS[g], tc = isLight(c) ? '#000' : '#fff';
     return `<button class="grade-btn" data-grade="${g}" style="background:${c};color:${tc}">${g}</button>`;
   }).join('');
   container.addEventListener('click', e => {
     const btn = e.target.closest('.grade-btn');
     if (!btn) return;
-    formGrade = btn.dataset.grade;
-    updateGradePickerUI();
+    formGrade = btn.dataset.grade; updateGradePickerUI();
   });
 }
-
 function updateGradePickerUI() {
   document.querySelectorAll('.grade-btn').forEach(b => b.classList.toggle('selected', b.dataset.grade === formGrade));
 }
@@ -803,45 +705,52 @@ function setupStatusPicker() {
   document.getElementById('status-picker').addEventListener('click', e => {
     const btn = e.target.closest('.status-btn');
     if (!btn) return;
-    formStatus = btn.dataset.status;
-    updateStatusPickerUI();
+    formStatus = btn.dataset.status; updateStatusPickerUI();
   });
 }
-
 function updateStatusPickerUI() {
   document.querySelectorAll('.status-btn').forEach(b => b.classList.toggle('active', b.dataset.status === formStatus));
 }
 
 // ── EVENT LISTENERS ────────────────────────────────────────
 function setupEventListeners() {
+  // Sign out (sidebar + mobile)
   document.getElementById('signout-btn').addEventListener('click', () => {
     if (confirm('Sign out?')) sb.auth.signOut();
   });
+  document.getElementById('signout-mobile-btn').addEventListener('click', () => {
+    if (confirm('Sign out?')) sb.auth.signOut();
+  });
 
+  // Theme
+  document.getElementById('theme-toggle-mobile').addEventListener('click', toggleTheme);
+  document.getElementById('theme-toggle-sidebar').addEventListener('click', toggleTheme);
+
+  // Add climb (header + sidebar)
   document.getElementById('add-climb-btn').addEventListener('click', openAddClimb);
+  document.getElementById('add-climb-sidebar-btn').addEventListener('click', openAddClimb);
+
+  // Edit view
   document.getElementById('edit-back-btn').addEventListener('click', () => showView('list-view'));
   document.getElementById('save-climb-btn').addEventListener('click', handleSaveClimb);
 
-  // Photo
-  const photoArea = document.getElementById('photo-upload-area');
+  // Photo upload
+  const photoArea  = document.getElementById('photo-upload-area');
   const photoInput = document.getElementById('photo-input');
   photoArea.addEventListener('click', () => photoInput.click());
   photoInput.addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    formPhotoFile = file;
-    formPhotoUrl = null;
+    const file = e.target.files[0]; if (!file) return;
+    formPhotoFile = file; formPhotoUrl = null;
     const reader = new FileReader();
     reader.onload = ev => {
       const preview = document.getElementById('edit-photo-preview');
-      preview.src = ev.target.result;
-      preview.classList.remove('hidden');
+      preview.src = ev.target.result; preview.classList.remove('hidden');
       document.getElementById('photo-placeholder').classList.add('hidden');
     };
     reader.readAsDataURL(file);
   });
 
-  // Detail
+  // Detail view
   document.getElementById('detail-back-btn').addEventListener('click', () => {
     if (drawingModified && !confirm('Discard unsaved drawing changes?')) return;
     showView('list-view');
@@ -857,11 +766,9 @@ function setupEventListeners() {
   document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
       drawTool = btn.dataset.tool;
-      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.toggle('active', b === btn));
     });
   });
-
   document.querySelectorAll('.color-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
       drawColor = sw.dataset.color;
@@ -873,25 +780,22 @@ function setupEventListeners() {
       }
     });
   });
-
   document.getElementById('undo-btn').addEventListener('click', undo);
   document.getElementById('clear-drawing-btn').addEventListener('click', clearDrawing);
   document.getElementById('save-drawing-btn').addEventListener('click', saveDrawing);
 
   // Search
   document.getElementById('search-input').addEventListener('input', e => {
-    searchQuery = e.target.value;
-    renderClimbsList();
+    searchQuery = e.target.value; renderClimbsList();
   });
 }
 
 // ── HELPERS ────────────────────────────────────────────────
 function isLight(hex) {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0,2), 16), g = parseInt(h.slice(2,4), 16), b = parseInt(h.slice(4,6), 16);
+  const h = hex.replace('#','');
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
   return (r*299 + g*587 + b*114) / 1000 > 128;
 }
-
 function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -899,8 +803,7 @@ function esc(str) {
 let toastTimer;
 function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type}`;
+  t.textContent = msg; t.className = `toast ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), 3000);
 }
